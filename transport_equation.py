@@ -9,9 +9,9 @@ from datetime import datetime
 ti.init(arch=ti.gpu, debug=True)
 
 float_type = ti.f64
-grid_res = (80, 80)
+grid_res = (800, 800)
 # dx = 1.0 / grid_res[0]
-dx = 1.0
+dx = 1.0/10
 dt = 0.1
 
 b = ti.Vector([1.0, 1.0])
