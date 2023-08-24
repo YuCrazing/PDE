@@ -4,7 +4,9 @@
 # u(r, t) = f2, r = R2
 
 # Some examples:
+# R1 = 3, R2 = 6, f1 = 5cos(t), f2 = 10sin(t)
 # https://www.math.uh.edu/~pwalker/laplace6.pdf
+# R1 = 1, R2 = 2, f1 = 0, f2 = 10sin(t)
 # https://www.math.usm.edu/lambers/mat417/class0425.pdf
 
 
@@ -16,19 +18,37 @@ ti.init(arch=ti.gpu, debug=True)
 
 float_type = ti.f64
 grid_res = (512, 512)
-dx = 14.0 / grid_res[0]
-dt = 0.1
-
-origin = ti.Vector([7., 7.])
 u = ti.field(float_type, grid_res)
 u_temp = ti.field(float_type, grid_res)
 
+
+use_case = 2
 use_exact = False
 record_video = False
 
-# R1 = 3, R2 = 6, f1 = 5cos(t), f2 = 10sin(t)
-R1 = 3
-R2 = 6
+
+dt = 0.1
+
+dx = 0.0
+if use_case == 1:
+    dx = 14.0 / grid_res[0]
+elif use_case == 2:
+    dx = 6.0 / grid_res[0]
+    
+origin = ti.Vector([0.0, 0.0])
+if use_case == 1:
+    origin = ti.Vector([7., 7.])
+elif use_case == 2:
+    origin = ti.Vector([3., 3.])
+
+R1 = R2 = 0
+if use_case == 1:
+    R1 = 3
+    R2 = 6
+elif use_case == 2:
+    R1 = 1
+    R2 = 2
+
 @ti.func
 def inU(spatial_pos):
     p = spatial_pos - origin
@@ -57,10 +77,15 @@ def g(spatial_pos):
     cos_t = p.x / r
 
     if outer_R2(spatial_pos):
-        res = 10*sin_t
+        if use_case == 1:
+            res = 10*sin_t
+        elif use_case == 2:
+            res = sin_t
     elif inner_R1(spatial_pos):
-        res = 5*cos_t
-
+        if use_case == 1:
+            res = 5*cos_t
+        elif use_case == 2:
+            res = 0.0
     return res
 
 
@@ -79,7 +104,10 @@ def exact():
             r = p.norm()
             sin_t = p.y / r
             cos_t = p.x / r
-            u[i, j] = (-5*r/9+20/r)*cos_t + (20*r/9-20/r)*sin_t
+            if use_case == 1:
+                u[i, j] = (-5*r/9+20/r)*cos_t + (20*r/9-20/r)*sin_t
+            else:
+                u[i, j] = 2/3*(r-1/r)*sin_t
 
 
 @ti.kernel
@@ -134,7 +162,6 @@ while gui.running and not gui.get_event(gui.ESCAPE):
     frame += 1
     if frame >= 400:
         break
-    # gui.text(f'grid res: {grid_res[0]} * {grid_res[1]}', pos=(0.01, 0.99), color=0xFF0000, font_size=10)
 
 if record_video:
     video_manager.make_video(gif=True, mp4=True)
