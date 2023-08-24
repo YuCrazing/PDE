@@ -12,15 +12,16 @@ float_type = ti.f64
 grid_res = (800, 800)
 # dx = 1.0 / grid_res[0]
 dx = 1.0/10
-dt = 0.1
+dt = 0.01
 
 b = ti.Vector([1.0, 1.0])
 u = ti.field(float_type, grid_res)
 u_temp = ti.field(float_type, grid_res)
-u_t = ti.Vector.field(2, float_type, grid_res)
+# u_t = ti.Vector.field(2, float_type, grid_res)
+u_t = ti.field(float_type, grid_res)
 
 use_RK = 3
-use_exact = True
+use_exact = False
 record_video = False
 
 
@@ -28,8 +29,13 @@ record_video = False
 @ti.func
 def g(spatial_pos):
     res = 0.0
-    if spatial_pos.x <= 0.5*dx or spatial_pos.y <= 0.5*dx:
-        res = 1.0 
+    # res = spatial_pos.x / 80
+    if spatial_pos.x <= 40:
+        res = 0.0
+    else:
+        res = 1.0
+    # if spatial_pos.x <= 0.5*dx or spatial_pos.y <= 0.5*dx:
+    #     res = 1.0 
     return res
 
 @ti.kernel
@@ -103,13 +109,14 @@ def step(dt: float_type):
             Du.y = (u[i, j + 1] - u[i, j]) / dx
         else:
             Du.y = (u[i, j] - u[i, j - 1]) / dx
-        u_t[i, j] = - b * Du
+        u_t[i, j] = - b.dot(Du)
     
-    for i, j in u_temp:
-        u_temp[i, j] = backtrace(u, u_t, ti.Vector([(i+0.5)*dx, (j+0.5)*dx], dt=float_type), dt)
+    # for i, j in u_temp:
+    # #     u_temp[i, j] = backtrace(u, u_t, ti.Vector([(i+0.5)*dx, (j+0.5)*dx], dt=float_type), dt)
+    #     u_temp[i, j] = b.dot(u_t[i, j] * dt
 
     for i, j in u:
-        u[i, j] = u_temp[i, j]
+        u[i, j] += u_t[i, j] * dt
 
 
 init_u()
