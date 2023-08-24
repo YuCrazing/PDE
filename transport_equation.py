@@ -33,7 +33,7 @@ def g(spatial_pos):
     return res
 
 @ti.kernel
-def init_boundary_condition():
+def init_u():
     for i, j in u:
         u[i, j] = g(ti.Vector([(i+0.5)*dx, (j+0.5)*dx]))
 
@@ -112,7 +112,7 @@ def step(dt: float_type):
         u[i, j] = u_temp[i, j]
 
 
-init_boundary_condition()
+init_u()
 gui = ti.GUI('Transport Equation', res=grid_res, background_color=0x0)
 
 result_dir = "./result"
