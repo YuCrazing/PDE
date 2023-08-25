@@ -13,7 +13,9 @@ scene_length = 80.0
 grid_res = (80, 80)
 # dx = 1.0 / grid_res[0]
 dx = scene_length / grid_res[0]
-dt = 0.001
+dt = 0.1
+
+assert dt < dx
 
 b = ti.Vector([1.0, 1.0])
 u = ti.field(float_type, grid_res)
@@ -35,11 +37,12 @@ def g(spatial_pos):
         res = 1.0
     # if spatial_pos.x <= 0.5*dx or spatial_pos.y <= 0.5*dx:
     #     res = 1.0 
-    center = ti.Vector([scene_length / 2, scene_length / 2])
+    center = ti.Vector([scene_length / 4, scene_length / 4])
     if (spatial_pos - center).norm() <= scene_length / 8:
         res = 1.0
     else:
         res = 0.0
+    res = 2*ti.exp(-2/32*((spatial_pos.x-scene_length/4)**2)-2/32*((spatial_pos.y-scene_length/3)**2))
     return res
 
 @ti.kernel
@@ -67,19 +70,19 @@ def step(dt: float_type):
         if i > 0:
             ul = u[i-1, j]
         else:
-            ul = u[i, j] # TODO
+            ul = 0
         if i < grid_res[0] - 1:
             ur = u[i+1, j]
         else:
-            ur = u[i, j]
+            ur = 0
         if j > 0:
             ut = u[i, j-1]
         else:
-            ut = u[i, j]
+            ut = 0
         if j < grid_res[1] - 1:
             ub = u[i, j+1]
         else:
-            ub = u[i, j]
+            ub = 0
         nabla_u = (ur + ul + ub + ut - 4 * u[i, j]) / (dx * dx)
 
         u_tt[i, j] = nabla_u
@@ -106,6 +109,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 fig = plt.figure()
 ax = fig.add_subplot(projection='3d')
+ax.axes.set_zlim3d(bottom=-2, top=2) 
 X = np.arange(0, grid_res[0]*dx, dx)
 Y = np.arange(0, grid_res[1]*dx, dx)
 X, Y = np.meshgrid(X, Y)
@@ -119,7 +123,7 @@ while gui.running and not gui.get_event(gui.ESCAPE):
     if use_exact:
         exact(accumulated_time)
     else:
-        for i in range(100):
+        for i in range(10):
             step(dt)
     
     gui.clear(0x0)
@@ -130,6 +134,7 @@ while gui.running and not gui.get_event(gui.ESCAPE):
     gui.show()
 
     ax.clear()
+    ax.axes.set_zlim3d(bottom=-2, top=2) 
     ax.plot_surface(X, Y, u.to_numpy(), rstride=1, cstride=1, cmap='viridis')
     # plt.pause(0.01)
     plt.savefig(f'plots/frames/foo_{frame:06d}.png', dpi=300)
