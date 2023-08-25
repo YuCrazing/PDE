@@ -12,11 +12,13 @@ float_type = ti.f64
 grid_res = (800, 800)
 # dx = 1.0 / grid_res[0]
 dx = 1.0/10
-dt = 0.01
+dt = 0.05
 
 b = ti.Vector([1.0, 1.0])
 u = ti.field(float_type, grid_res)
+u_t = ti.field(float_type, grid_res)
 
+use_upwind = True # True: upwind scheme; False: central difference scheme
 use_exact = False
 record_video = False
 
@@ -25,12 +27,24 @@ record_video = False
 @ti.func
 def g(spatial_pos):
     res = 0.0
+
+    # case 1: boundary condition
     # if spatial_pos.x <= 0.5*dx or spatial_pos.y <= 0.5*dx:
-    #     res = 1.0 
-    if spatial_pos.x <= 40:
-        res = 0.0
-    else:
+    #     res = 1.0
+
+    # case 2: half space
+    # if spatial_pos.x + spatial_pos.y <= 80:
+    #     res = 0.0
+    # else:
+    #     res = 1.0
+
+    # case 3: circle
+    center = ti.Vector([40.0, 40.0])
+    if (spatial_pos - center).norm() <= 10.0:
         res = 1.0
+    else:
+        res = 0.0
+
     return res
 
 @ti.kernel
@@ -45,25 +59,72 @@ def exact(accumulated_time: float_type):
         u[i, j] = g(ti.Vector([(i+0.5)*dx, (j+0.5)*dx]) - b * accumulated_time)
 
 
+# Clamping boundary condition: clamp the value out of the boundary to the boundary
+@ti.func
+def sample(u: ti.template(), cid):
+    cid = ti.max(0, ti.min(ti.Vector([grid_res[0], grid_res[1]]) - 1, cid))
+    return u[cid]
+
+@ti.func
+def lerp(vl, vr, frac):
+    return vl + frac * (vr - vl)
+
+@ti.func
+def bilerp(u: ti.template(), spatial_pos) -> float_type:
+    grid_pos = spatial_pos/dx-0.5
+    # floor: toward -inf
+    # cast: toward zero
+    # Here we use floor to ensure the returned value is the exact value at (0, 0) when pos=(0, 0)
+    base_cid = ti.floor(grid_pos, ti.i32)
+    frac = grid_pos - base_cid
+    v00 = sample(u, ti.Vector([base_cid.x, base_cid.y]))
+    v10 = sample(u, ti.Vector([base_cid.x+1, base_cid.y]))
+    v01 = sample(u, ti.Vector([base_cid.x, base_cid.y+1]))
+    v11 = sample(u, ti.Vector([base_cid.x+1, base_cid.y+1]))
+    return lerp(lerp(v00, v10, frac.x), lerp(v01, v11, frac.x), frac.y)
+
+
 @ti.kernel
 def step(dt: float_type):
     for i, j in u:
         Du = ti.Vector([0.0, 0.0], dt=float_type)
-        if i > 0 and i < grid_res[0] - 1:
-            Du.x = (u[i+1, j] - u[i - 1, j]) /(2*dx)
-        elif i == 0:
-            Du.x = (u[i + 1, j] - u[i, j]) / dx
-        else:
-            Du.x = (u[i, j] - u[i - 1, j]) / dx
+        h = dx*1
+        if use_upwind:
+            # if i > 0 and i < grid_res[0] - 1:
+            #     Du.x = (u[i, j] - u[i - 1, j]) /(dx)
+            # elif i == 0:
+            #     Du.x = (u[i + 1, j] - u[i, j]) / dx
+            # else:
+            #     Du.x = (u[i, j] - u[i - 1, j]) / dx
 
-        if j > 0 and j < grid_res[1] - 1:
-            Du.y = (u[i, j+1] - u[i, j - 1]) / (2*dx)
-        elif j == 0:
-            Du.y = (u[i, j + 1] - u[i, j]) / dx
+            # if j > 0 and j < grid_res[1] - 1:
+            #     Du.y = (u[i, j+1] - u[i, j - 1]) / (2*dx)
+            # elif j == 0:
+            #     Du.y = (u[i, j + 1] - u[i, j]) / dx
+            # else:
+            #     Du.y = (u[i, j] - u[i, j - 1]) / dx
+            Du.x = (bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx])) - bilerp(u, ti.Vector([(i+0.5)*dx-h, (j+0.5)*dx]))) / (h)
+            Du.y = (bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx])) - bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx-h]))) / (h)
         else:
-            Du.y = (u[i, j] - u[i, j - 1]) / dx
-        u_t = - b.dot(Du)
-        u[i, j] += u_t * dt
+            # if i > 0 and i < grid_res[0] - 1:
+            #     Du.x = (u[i+1, j] - u[i - 1, j]) /(2*dx)
+            # elif i == 0:
+            #     Du.x = (u[i + 1, j] - u[i, j]) / dx
+            # else:
+            #     Du.x = (u[i, j] - u[i - 1, j]) / dx
+
+            # if j > 0 and j < grid_res[1] - 1:
+            #     Du.y = (u[i, j+1] - u[i, j - 1]) / (2*dx)
+            # elif j == 0:
+            #     Du.y = (u[i, j + 1] - u[i, j]) / dx
+            # else:
+            #     Du.y = (u[i, j] - u[i, j - 1]) / dx
+            Du.x = (bilerp(u, ti.Vector([(i+0.5)*dx+h, (j+0.5)*dx])) - bilerp(u, ti.Vector([(i+0.5)*dx-h, (j+0.5)*dx]))) / (2*h)
+            Du.y = (bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx+h])) - bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx-h]))) / (2*h)
+        u_t[i, j] = - b.dot(Du)
+    
+    for i, j in u:
+        u[i, j] += u_t[i, j] * dt
 
 
 init_u()
