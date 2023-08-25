@@ -1,6 +1,9 @@
 # Solve the transport equation:
 # u_t + b * Du = 0, t > 0
 # u = g,            t == 0
+# 
+# Stability analysis of several numerical schemes:
+# https://www.uni-muenster.de/imperia/md/content/physik_tp/lectures/ws2016-2017/num_methods_i/advection.pdf
 
 
 import taichi as ti
@@ -11,8 +14,8 @@ ti.init(arch=ti.gpu, debug=True)
 float_type = ti.f64
 grid_res = (800, 800)
 # dx = 1.0 / grid_res[0]
-dx = 1.0/10
-dt = 0.05
+dx = 1.0/1000
+dt = 0.0001
 
 b = ti.Vector([1.0, 1.0])
 u = ti.field(float_type, grid_res)
@@ -39,8 +42,8 @@ def g(spatial_pos):
     #     res = 1.0
 
     # case 3: circle
-    center = ti.Vector([40.0, 40.0])
-    if (spatial_pos - center).norm() <= 10.0:
+    center = ti.Vector([0.4, 0.4])
+    if (spatial_pos - center).norm() <= 0.1:
         res = 1.0
     else:
         res = 0.0
@@ -86,6 +89,7 @@ def bilerp(u: ti.template(), spatial_pos) -> float_type:
 
 @ti.kernel
 def step(dt: float_type):
+    u_mx = float_type(0.0)
     for i, j in u:
         Du = ti.Vector([0.0, 0.0], dt=float_type)
         h = dx*1
@@ -122,6 +126,8 @@ def step(dt: float_type):
             Du.x = (bilerp(u, ti.Vector([(i+0.5)*dx+h, (j+0.5)*dx])) - bilerp(u, ti.Vector([(i+0.5)*dx-h, (j+0.5)*dx]))) / (2*h)
             Du.y = (bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx+h])) - bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx-h]))) / (2*h)
         u_t[i, j] = - b.dot(Du)
+        u_mx = ti.max(u_mx, u[i, j])
+    # print("max u:", u_mx)
     
     for i, j in u:
         u[i, j] += u_t[i, j] * dt
@@ -142,7 +148,8 @@ while gui.running and not gui.get_event(gui.ESCAPE):
     if use_exact:
         exact(accumulated_time)
     else:
-        step(dt)
+        for i in range(1):
+            step(dt)
     
     gui.clear(0x0)
     gui.set_image(u)
