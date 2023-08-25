@@ -21,7 +21,7 @@ b = ti.Vector([1.0, 1.0])
 u = ti.field(float_type, grid_res)
 u_t = ti.field(float_type, grid_res)
 
-use_upwind = True # True: upwind scheme; False: central difference scheme
+use_upwind = True # True: upwind scheme; False: forward time-centered space (FTCS) scheme
 use_exact = False
 record_video = False
 
