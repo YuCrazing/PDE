@@ -4,7 +4,7 @@
 #
 # Stability analysis of FTCS scheme:
 # https://en.wikipedia.org/wiki/Von_Neumann_stability_analysis
-
+# https://math.mit.edu/research/highschool/rsi/documents/2017Lee.pdf
 
 import taichi as ti
 from datetime import datetime
