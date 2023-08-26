@@ -1,5 +1,5 @@
 # Solve the wave equation:
-# \u_t - \nabla u = 0, t > 0
+# \u_t - \laplacian u = 0, t > 0
 # u = g,            t == 0
 
 
@@ -42,7 +42,7 @@ def g(spatial_pos):
         res = 1.0
     else:
         res = 0.0
-    res = 2*ti.exp(-2/32*((spatial_pos.x-scene_length/4)**2)-2/32*((spatial_pos.y-scene_length/3)**2))
+    res = 2*ti.exp(-2/32*((spatial_pos.x-scene_length/2)**2)-2/32*((spatial_pos.y-scene_length/2)**2))
     return res
 
 @ti.kernel
@@ -63,8 +63,8 @@ def exact(accumulated_time: float_type):
 @ti.kernel
 def step(dt: float_type):
     for i, j in u:
-        # \nabla u = \frac{1}{dx^2} (u[i+1, j] + u[i-1, j] + u[i, j+1] + u[i, j-1] - 4 * u[i, j])
-        nabla_u = float_type(0.0)
+        # \laplacian u = \frac{1}{dx^2} (u[i+1, j] + u[i-1, j] + u[i, j+1] + u[i, j-1] - 4 * u[i, j])
+        laplacian_u = float_type(0.0)
         ul, ur, ut, ub = float_type(0.0), float_type(0.0), float_type(0.0), float_type(0.0)
 
         if i > 0:
@@ -83,9 +83,9 @@ def step(dt: float_type):
             ub = u[i, j+1]
         else:
             ub = 0
-        nabla_u = (ur + ul + ub + ut - 4 * u[i, j]) / (dx * dx)
+        laplacian_u = (ur + ul + ub + ut - 4 * u[i, j]) / (dx * dx)
 
-        u_tt[i, j] = nabla_u
+        u_tt[i, j] = laplacian_u
 
     u_mx = float_type(0.0)
     for i, j in u:

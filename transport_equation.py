@@ -12,10 +12,11 @@ from datetime import datetime
 ti.init(arch=ti.gpu, debug=True)
 
 float_type = ti.f64
+scene_length = 80.0
 grid_res = (800, 800)
 # dx = 1.0 / grid_res[0]
-dx = 1.0/1000
-dt = 0.0001
+dx = scene_length / grid_res[0]
+dt = 0.05
 
 b = ti.Vector([1.0, 1.0])
 u = ti.field(float_type, grid_res)
@@ -36,14 +37,14 @@ def g(spatial_pos):
     #     res = 1.0
 
     # case 2: half space
-    # if spatial_pos.x + spatial_pos.y <= 80:
+    # if spatial_pos.x + spatial_pos.y <= scene_length:
     #     res = 0.0
     # else:
     #     res = 1.0
 
     # case 3: circle
-    center = ti.Vector([0.4, 0.4])
-    if (spatial_pos - center).norm() <= 0.1:
+    center = ti.Vector([scene_length / 2, scene_length / 2])
+    if (spatial_pos - center).norm() <= scene_length / 8:
         res = 1.0
     else:
         res = 0.0
@@ -148,17 +149,19 @@ while gui.running and not gui.get_event(gui.ESCAPE):
     if use_exact:
         exact(accumulated_time)
     else:
-        for i in range(1):
-            step(dt)
+        step(dt)
     
     gui.clear(0x0)
     gui.set_image(u)
+
+    gui.text(f'Method: {"Exact" if use_exact else ("Upwind" if use_upwind else "FTCS")}', pos=(0.01, 0.97), color=0xFFFFFF, font_size=20)
+    gui.text(f'dt: {dt}', pos=(0.01, 0.93), color=0xFFFFFF, font_size=20)
     
     if record_video:
         video_manager.write_frame(gui.get_image())
     gui.show()
 
-    if accumulated_time > 40.0:
+    if accumulated_time > 30.0:
         break
 
 if record_video:

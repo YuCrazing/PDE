@@ -1,5 +1,5 @@
 # Solve the heat equation:
-# \u_t - \nabla u = 0, t > 0
+# \u_t - \laplacian u = 0, t > 0
 # u = g,            t == 0
 #
 # Stability analysis of FTCS scheme:
@@ -88,31 +88,31 @@ def bilerp(u: ti.template(), spatial_pos) -> float_type:
 @ti.kernel
 def step(dt: float_type):
     for i, j in u:
-        # \nabla u = \frac{1}{dx^2} (u[i+1, j] + u[i-1, j] + u[i, j+1] + u[i, j-1] - 4 * u[i, j])
+        # \laplacian u = \frac{1}{dx^2} (u[i+1, j] + u[i-1, j] + u[i, j+1] + u[i, j-1] - 4 * u[i, j])
         if i > 0 and i < grid_res[0] - 1 and j > 0 and j < grid_res[1] - 1:
-            nabla_u = float_type(0.0)
+            laplacian_u = float_type(0.0)
             ur = bilerp(u, ti.Vector([(i+1+0.5)*dx, (j+0.5)*dx]))
             ul = bilerp(u, ti.Vector([(i-1+0.5)*dx, (j+0.5)*dx]))
             ut = bilerp(u, ti.Vector([(i+0.5)*dx, (j+1+0.5)*dx]))
             ub = bilerp(u, ti.Vector([(i+0.5)*dx, (j-1+0.5)*dx]))
             uc = bilerp(u, ti.Vector([(i+0.5)*dx, (j+0.5)*dx]))
-            nabla_u = (ur + ul + ut + ub - 4 * uc)/(dx*dx)
+            laplacian_u = (ur + ul + ut + ub - 4 * uc)/(dx*dx)
 
             # cnt = 0
             # if i > 0:
-            #     nabla_u += u[i-1, j]
+            #     laplacian_u += u[i-1, j]
             #     cnt += 1
             # if i < grid_res[0] - 1:
-            #     nabla_u += u[i+1, j]
+            #     laplacian_u += u[i+1, j]
             #     cnt += 1
             # if j > 0:
-            #     nabla_u += u[i, j-1]
+            #     laplacian_u += u[i, j-1]
             #     cnt += 1
             # if j < grid_res[1] - 1:
-            #     nabla_u += u[i, j+1]
+            #     laplacian_u += u[i, j+1]
             #     cnt += 1
-            # nabla_u = (nabla_u - cnt * u[i, j]) / (dx * dx)
-            u_t[i, j] = nabla_u
+            # laplacian_u = (laplacian_u - cnt * u[i, j]) / (dx * dx)
+            u_t[i, j] = laplacian_u
 
     for i, j in u:
         if i > 0 and i < grid_res[0] - 1 and j > 0 and j < grid_res[1] - 1:

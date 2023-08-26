@@ -1,5 +1,5 @@
 # Solve the laplace equation:
-# \nabla u(x) = 0, x \in U
+# \laplacian u(x) = 0, x \in U
 # u(r, t) = f1, r = R1,
 # u(r, t) = f2, r = R2
 
