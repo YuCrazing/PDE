@@ -14,10 +14,10 @@ ti.init(arch=ti.gpu, debug=True)
 
 float_type = ti.f64
 scene_length = 80.0
-grid_res = (80, 80)
+grid_res = (800, 800)
 # dx = 1.0 / grid_res[0]
 dx = scene_length / grid_res[0]
-dt = 0.0024
+dt = 0.0003
 
 
 assert dt < dx * dx / 4
@@ -27,20 +27,28 @@ u = ti.field(float_type, grid_res)
 u_t = ti.field(float_type, grid_res)
 
 use_exact = False
-record_video = False
+record_taichi = False
+record_matplot = False
 
 
 # g is the initial condition of u at t = 0. However, g is not C^1 here to make the clamping boundary condition easier to implement.
 @ti.func
 def g(spatial_pos):
     res = 0.0
+    # case 1
     # # res = spatial_pos.x / scene_length
-    # if spatial_pos.x <= 40:
+
+    # case 2
+    # if spatial_pos.x <= scene_length / 2:
     #     res = 0.0
     # else:
     #     res = 1.0
+
+    # case 3
     # # if spatial_pos.x <= 0.5*dx or spatial_pos.y <= 0.5*dx:
     # #     res = 1.0 
+
+    # case 4
     center = ti.Vector([scene_length / 2, scene_length / 2])
     if (spatial_pos - center).norm() <= scene_length / 8:
         res = 1.0
@@ -57,9 +65,6 @@ def init_u():
 @ti.kernel
 def exact(accumulated_time: float_type):
     pass
-    # for i, j in u:
-    #     u[i, j] = g(ti.Vector([(i+0.5)*dx, (j+0.5)*dx]) - b * accumulated_time)
-
 
 # Clamping boundary condition: clamp the value out of the boundary to the boundary
 @ti.func
@@ -127,18 +132,18 @@ filename = datetime.now().strftime("video_%Y_%m_%d_%H_%M_%S") + "_" + ("exact" i
 video_manager = ti.tools.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False, video_filename=filename)
 
 
-import matplotlib.pyplot as plt
-fig = plt.figure()
-ax = fig.add_subplot(projection='3d')
-X = np.arange(0, grid_res[0]*dx, dx)
-Y = np.arange(0, grid_res[1]*dx, dx)
-X, Y = np.meshgrid(X, Y)
-
+if record_matplot:
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    X = np.arange(0, grid_res[0]*dx, dx)
+    Y = np.arange(0, grid_res[1]*dx, dx)
+    X, Y = np.meshgrid(X, Y)
 
 accumulated_time = 0.0
 frame = 0
 while gui.running and not gui.get_event(gui.ESCAPE):
-    accumulated_time += dt
+    accumulated_time += dt*10
     print("accumulated time:", accumulated_time)
     
     if use_exact:
@@ -148,24 +153,27 @@ while gui.running and not gui.get_event(gui.ESCAPE):
             step(dt)
 
     gui.clear(0x0)
-    gui.set_image(u)
+    gui.set_image(u.to_numpy()) # gui.set_image(u) not working occasionally
     
-    if record_video:
+    if record_taichi:
         video_manager.write_frame(gui.get_image())
     
-    ax.clear()
-    ax.plot_surface(X, Y, u.to_numpy(), rstride=1, cstride=1, cmap='viridis')
-    # plt.pause(0.01)
-    plt.savefig(f'plots/frames/foo_{frame:06d}.png', dpi=300)
     gui.show()
+
+    if record_matplot:
+        ax.clear()
+        ax.plot_surface(X, Y, u.to_numpy(), rstride=1, cstride=1, cmap='viridis')
+        # plt.pause(0.01)
+        plt.savefig(f'plots/frames/foo_{frame:06d}.png', dpi=300)
 
     frame += 1
 
     if accumulated_time > 1.0:
         break
 
-# plt.show()
-import os
-os.system(f"cd plots && ffmpeg -framerate 30 -pattern_type glob -i 'frames/*.png'  -c:v libx264 -pix_fmt yuv420p {filename}_plot.mp4")
-if record_video:
+if record_matplot:
+    # plt.show()
+    import os
+    os.system(f"cd plots && ffmpeg -framerate 30 -pattern_type glob -i 'frames/*.png'  -c:v libx264 -pix_fmt yuv420p {filename}_plot.mp4")
+if record_taichi:
     video_manager.make_video(gif=True, mp4=True)

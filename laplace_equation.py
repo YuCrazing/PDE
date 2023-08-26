@@ -14,32 +14,30 @@ import taichi as ti
 from datetime import datetime
 import math
 
-ti.init(arch=ti.gpu, debug=True)
+ti.init(arch=ti.gpu, debug=False)
 
 float_type = ti.f64
-grid_res = (512, 512)
+grid_res = (800, 800)
 u = ti.field(float_type, grid_res)
 u_temp = ti.field(float_type, grid_res)
 
 
 use_case = 2
 use_exact = False
-record_video = False
+record_taichi = False
+record_matplot = False
 
-
-dt = 0.1
-
+scene_length = 0.0
 dx = 0.0
 if use_case == 1:
-    dx = 14.0 / grid_res[0]
+    scene_length = 14.0
+    dx = scene_length / grid_res[0]
 elif use_case == 2:
-    dx = 6.0 / grid_res[0]
+    scene_length = 6.0
+    dx = scene_length / grid_res[0]
     
-origin = ti.Vector([0.0, 0.0])
-if use_case == 1:
-    origin = ti.Vector([7., 7.])
-elif use_case == 2:
-    origin = ti.Vector([3., 3.])
+origin = ti.Vector([scene_length/2, scene_length/2])
+
 
 R1 = R2 = 0
 if use_case == 1:
@@ -142,26 +140,49 @@ result_dir = "./result"
 filename = datetime.now().strftime("video_%Y_%m_%d_%H_%M_%S") + "_" + ("exact" if use_exact else "numerical")
 video_manager = ti.tools.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False, video_filename=filename)
 
+
+if record_matplot:
+    import numpy as np
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.view_init(elev=24, azim=-109)
+
+    X = np.arange(0, grid_res[0]*dx, dx)
+    Y = np.arange(0, grid_res[1]*dx, dx)
+    X, Y = np.meshgrid(X, Y)
+
+
 frame = 0
 while gui.running and not gui.get_event(gui.ESCAPE):
     
     if use_exact:
         exact()
     else:
-        for i in range(30):
+        for i in range(10):
             step(u, u_temp)
             step(u_temp, u)
     
     gui.clear(0x0)
-    gui.set_image(u)
+    gui.set_image(u.to_numpy()) # gui.set_image(u) not working occasionally
     
-    if record_video:
+    if record_taichi:
         video_manager.write_frame(gui.get_image())
     gui.show()
 
-    frame += 1
-    if frame >= 400:
-        break
+    if record_matplot:
+        ax.clear()
+        ax.plot_surface(X, Y, u.to_numpy(), rstride=1, cstride=1, cmap='viridis')
+        # plt.pause(0.01)
+        plt.savefig(f'plots/frames/foo_{frame:06d}.png', dpi=300)
 
-if record_video:
+    frame += 1
+    print("frame:", frame)
+    if frame >= 300:
+        break
+if record_matplot:
+    # plt.show()
+    import os
+    os.system(f"cd plots && ffmpeg -framerate 30 -pattern_type glob -i 'frames/*.png'  -c:v libx264 -pix_fmt yuv420p {filename}_plot.mp4")
+if record_taichi:
     video_manager.make_video(gif=True, mp4=True)

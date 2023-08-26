@@ -152,7 +152,7 @@ while gui.running and not gui.get_event(gui.ESCAPE):
         step(dt)
     
     gui.clear(0x0)
-    gui.set_image(u)
+    gui.set_image(u.to_numpy()) # gui.set_image(u) not working occasionally
 
     gui.text(f'Method: {"Exact" if use_exact else ("Upwind" if use_upwind else "FTCS")}', pos=(0.01, 0.97), color=0xFFFFFF, font_size=20)
     gui.text(f'dt: {dt}', pos=(0.01, 0.93), color=0xFFFFFF, font_size=20)
