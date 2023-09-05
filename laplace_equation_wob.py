@@ -18,7 +18,7 @@ ti.init(arch=ti.gpu, debug=False)
 
 float_type = ti.f64
 grid_res = (10, 10)
-grid_res = (80, 80)
+# grid_res = (80, 80)
 grid_res = (800, 800)
 u = ti.field(float_type, grid_res)
 # u_temp = ti.field(float_type, grid_res)
@@ -133,37 +133,71 @@ def exact():
             else:
                 u[i, j] = 2/3*(r-1/r)*sin_t
 
-
-@ti.func
-def largest_radius(spatial_pos):
-    r = (spatial_pos - center).norm()
-    return ti.min(ti.abs(R1-r), ti.abs(R2-r))
-
 @ti.func
 def sample_dir():
     theta = ti.random()*2*math.pi
     return ti.Vector([ti.cos(theta), ti.sin(theta)], float_type)
 
+# Intersection of a ray and a circle:
+# Ray: o+d*t = (x, y)
+# Circle: (x-c.x)^2 + (y-c.y)^2 = r^2
+# -> 
+# d^2 t^2 + 2 * [(o.x-c.x)*d.x + (o.y-c.y)*d.y] * t + (o.x-c.x)^2 + (o.y-c.y)^2 - r^2 = 0
+# A = d^2
+# B = 2 * [(o.x-c.x)*d.x + (o.y-c.y)*d.y]
+# C = (o.x-c.x)^2 + (o.y-c.y)^2 - r^2
+# t = (-B +- sqrt(B^2 - 4AC)) / 2A
+@ti.func
+def ray_trace_circle(o, d, c, r):
+    A = d.norm_sqr()
+    B = 2 * (o - c).dot(d)
+    C = (o - c).norm_sqr() - r * r
+    t1, t2 = (-B - ti.sqrt(B * B - 4 * A * C)) / (2 * A), (-B + ti.sqrt(B * B - 4 * A * C)) / (2 * A)
+
+    res = float_type(-1.0) # -1 if no intersection
+    if t1 > 0:
+        res = t1
+    elif t2 > 0:
+        res = t2
+    return res
+
+
+path_length = 10
 @ti.kernel
-def wos_one_sample(u: ti.template(), current_samples: ti.i32):
+def wob_one_sample(u: ti.template(), current_samples: ti.i32):
     for i, j in u:
         spatial_pos = ti.Vector([(i+0.5)*dx, (j+0.5)*dx], float_type)
         if inU(spatial_pos):
-            r = largest_radius(spatial_pos)
-            if r < threshold:
-                u[i, j] = g_prjection(spatial_pos)
-            else:
-                res = float_type(0.0)
-                p = spatial_pos
-                while r >= threshold:
-                    dir = sample_dir()
-                    p = p + dir * r
-                    r = largest_radius(p)
-                res = g_prjection(p)
-                u[i, j] = res * (1.0 / current_samples) + u[i, j] * ((current_samples - 1.0) / current_samples)
+            o = spatial_pos
+            d = sample_dir()
+            res = float_type(0.0)
+            sign = float_type(1.0)
+            for k in range(path_length):
+                t1, t2 = ray_trace_circle(o, d, center, R1), ray_trace_circle(o, d, center, R2)
+                # Sample a new direction if the ray does not intersect with the boundary
+                while t1 < 0 and t2 < 0:
+                    d = sample_dir()
+                    t1, t2 = ray_trace_circle(o, d, center, R1), ray_trace_circle(o, d, center, R2)
+                t = float_type(0.0)
+                if t1 < 0 and t2 < 0:
+                    pass
+                elif t1 < 0:
+                    t = t2
+                else:
+                    t = t1
+                o = o + d * t
+                d = sample_dir()
+                if k == path_length - 1:
+                    res += sign * g_prjection(o)
+                else:
+                    res += sign * 2*g_prjection(o)
+                sign *= -1
+
+            # u[i, j] = res
+            u[i, j] = res * (1.0 / current_samples) + u[i, j] * ((current_samples - 1.0) / current_samples)
 
 init_u()
-gui = ti.GUI('Laplace Equation (WoS)', res=grid_res, background_color=0x0)
+gui = ti.GUI('Laplace Equation (WoB)', res=grid_res, background_color=0x0)
 
 result_dir = "./result"
 filename = datetime.now().strftime("video_%Y_%m_%d_%H_%M_%S") + "_" + ("exact" if use_exact else "numerical")
@@ -184,12 +218,14 @@ if record_matplot:
 
 
 frame = 0
+# wob_one_sample(u, frame+1)
 while gui.running and not gui.get_event(gui.ESCAPE):
     
     if use_exact:
         exact()
     else:
-        wos_one_sample(u, frame+1)
+        # pass
+        wob_one_sample(u, frame+1)
     
     gui.clear(0x0)
     gui.set_image(u.to_numpy()) # gui.set_image(u) not working occasionally
