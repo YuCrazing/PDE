@@ -164,7 +164,7 @@ def ray_trace_circle(o, d, c, r):
 
 path_length = 10
 @ti.kernel
-def wob_one_sample(u: ti.template(), current_samples: ti.i32):
+def wob(u: ti.template(), current_samples: ti.i32):
     for i, j in u:
         spatial_pos = ti.Vector([(i+0.5)*dx, (j+0.5)*dx], float_type)
         if inU(spatial_pos):
@@ -218,14 +218,12 @@ if record_matplot:
 
 
 frame = 0
-# wob_one_sample(u, frame+1)
 while gui.running and not gui.get_event(gui.ESCAPE):
     
     if use_exact:
         exact()
     else:
-        # pass
-        wob_one_sample(u, frame+1)
+        wob(u, frame+1)
     
     gui.clear(0x0)
     gui.set_image(u.to_numpy()) # gui.set_image(u) not working occasionally
