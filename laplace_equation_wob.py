@@ -17,11 +17,9 @@ import math
 ti.init(arch=ti.gpu, debug=False)
 
 float_type = ti.f64
-grid_res = (10, 10)
 # grid_res = (80, 80)
 grid_res = (800, 800)
 u = ti.field(float_type, grid_res)
-# u_temp = ti.field(float_type, grid_res)
 
 
 use_case = 2
