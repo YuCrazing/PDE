@@ -1,5 +1,5 @@
 # Solve the wave equation:
-# \u_t - \laplacian u = 0, t > 0
+# \u_tt - \laplacian u = 0, t > 0
 # u = g,            t == 0
 
 
@@ -27,7 +27,6 @@ record_taichi = False
 record_matplot = False
 
 
-# g is the initial condition of u at t = 0. However, g is not C^1 here to make the clamping boundary condition easier to implement.
 @ti.func
 def g(spatial_pos):
     res = 0.0
@@ -100,8 +99,7 @@ def step(dt: float_type):
         prev_u[i, j] = u[i, j]
         u[i, j] = new_u
     #     ti.atomic_max(u_mx, abs(new_u))
-    # if u_mx > 1.0:
-    #     print("u_mx:", u_mx)
+    # print("u_mx:", u_mx)
 
 
 init_u()
